@@ -1,0 +1,193 @@
+#+TITLE: Phương pháp tấn công bằng cách duyệt đường dẫn
+#+SETUPFILE: https://fniessen.github.io/org-html-themes/org/theme-readtheorg.setup
+#+EXPORT_FILE_NAME: ../index.html
+#+OPTIONS: num:nil
+#+AUTHOR: Nguyễn Tuấn Minh
+
+* Chú ý
+  Trang web này chỉ được dịch qua [[https://translate.google.com/][Google Dịch]] từ trang web [[https://portswigger.net/web-security/file-path-traversal][này]],
+  nếu bạn muốn tìm thông tin chính xác nhất thì hãy qua trang web 
+  đó để tìm hiểu thông tin một cách chính xác nhất.
+  
+  Trang web này chỉ để phục vụ mục đích Demo.
+* Di chuyển trong các thư mục là gì?
+  Trong phần này, chúng tôi sẽ giải thích duyệt thư mục là gì, 
+  mô tả cách thực hiện các cuộc tấn công duyệt đường dẫn và 
+  vượt qua các chướng ngại vật phổ biến, 
+  đồng thời giải thích cách ngăn chặn các lỗ hổng khi duyệt đường dẫn.
+
+  #+CAPTION: Hình minh họa về phương pháp tấn công
+  #+NAME: Directory Traversal
+  [[./resources/directory-traversal.svg]]
+  Di chuyển trong các thư mục (còn gọi là di chuyển qua đường dẫn tệp) là 
+  một lỗ hổng bảo mật web cho phép kẻ tấn công đọc các tệp tùy ý trên máy chủ đang chạy ứng dụng. 
+  Điều này có thể bao gồm mã ứng dụng, dữ liệu, thông tin đăng nhập của hệ thống, 
+  các tệp tin về hệ điều hành mang tính chất nhạy cảm (như file chứa mật khẩu các người dùng trong máy tính). 
+  Trong một số trường hợp, kẻ tấn công có thể ghi đè vào các tệp tin tùy ý trên máy chủ, 
+  cho phép chúng sửa đổi dữ liệu hoặc hành vi của ứng dụng và có thể chiếm hoàn toàn quyền kiểm soát máy chủ.
+  [[https://www.youtube.com/watch?v=NQwUDLMOrHo&t][What is directory traversal? (file path traversal) - Web Security Academy]]
+
+* Đọc các tệp tùy ý thông qua truyền tải thư mục
+  Hãy hình dung một ứng dụng mua sắm hiển thị hình ảnh của các mặt hàng để bán. Hình ảnh được tải qua một số HTML như sau:
+  #+begin_src html
+    <img src="/loadImage?filename=some-image.png">
+  #+end_src
+  URL =loadImage= nhận tham số tên tệp và trả về nội dung của tệp đã chỉ định. 
+  Bản thân các tệp hình ảnh được lưu trữ trên đĩa ở vị trí =/var/www/images/=. 
+  Để trả về một hình ảnh, ứng dụng sẽ thêm tên tệp được yêu cầu vào thư mục cơ sở này và
+  sử dụng API hệ thống tệp để đọc nội dung của tệp. 
+  Trong trường hợp trên, ứng dụng đọc từ đường dẫn tệp sau:
+
+  #+begin_src html
+    /var/www/images/218.png
+  #+end_src
+
+  Ứng dụng không triển khai biện pháp bảo vệ chống lại các cuộc tấn công duyệt thư mục, 
+  vì vậy kẻ tấn công có thể yêu cầu URL sau để truy xuất một tệp tùy ý từ hệ thống tệp của máy chủ:
+
+  #+begin_src html
+    https://insecure-website.com/loadImage?filename=../../../etc/passwd
+  #+end_src
+
+  Điều này khiến ứng dụng đọc từ đường dẫn tệp sau:
+
+  #+begin_src html
+    /var/www/images/../../../etc/passwd
+  #+end_src
+
+  Chuỗi ký tự =../= là một chuỗi hợp lệ trong một đường dẫn tệp và có nghĩa là
+  di chuyển lên trên một cấp trong thư mục. Ba chuỗi =../= liên tiếp sẽ di chuyển từ thư mục
+  =/var/www/images/= đến thư mục root (=/=) của hệ thống, do đó tệp tin thực sự được đọc sẽ là:
+
+  #+begin_src html
+    /etc/passwd
+  #+end_src
+
+  Trên các hệ điều trên Unix, đây là một tệp tiêu chuẩn chứa thông tin chi tiết về người dùng đã đăng ký trên máy chủ.
+  Trên Windows, cả =../= và =..\= đều là các chuỗi duyệt thư mục hợp lệ và 
+  một cuộc tấn công tương đương để lấy một tệp hệ điều hành tiêu chuẩn sẽ là:
+
+  #+begin_src html
+    https://insecure-website.com/loadImage?filename=..\..\..\windows\win.ini
+  #+end_src
+
+* Những trở ngại phổ biến khi khai thác lỗ hổng truyền tải đường dẫn tệp
+  Nhiều ứng dụng khi xử lý dữ liệu nhập vào của người dùng sẽ triển khai 
+  một số giải pháp nhằm chống lại phương thức tấn công này và chúng thường có thể 
+  bị vượt qua một cách dễ dàng.
+
+  Nếu một ứng dụng loại bỏ hoặc chặn các chuỗi duyệt thư mục khỏi tên tệp do người dùng cung cấp, 
+  thì có thể vượt qua lớp bảo vệ bằng nhiều kỹ thuật khác nhau.
+  
+  Kẻ tấn công có thể sử dụng một /đường dẫn tuyệt đối/ từ thư mục gốc của hệ thống tệp, 
+  chẳng hạn như =filename=/etc/passwd=, để tham chiếu trực tiếp tệp mà không cần sử dụng bất kỳ chuỗi =../= nào.
+
+  Bạn có thể sử dụng các chuỗi di chuyển lồng nhau, chẳng hạn như =....//= hoặc =....\/=, 
+  các chuỗi đó sẽ trở lại các chuỗi di chuyển đơn giản khi trình tự bên trong bị loại bỏ.
+
+  Trong một số tình huống, chẳng hạn như trong đường dẫn URL hoặc
+  tham số tên tệp của yêu cầu nhiều phần/biểu mẫu dữ liệu(multipart/form-data), 
+  máy chủ web có thể loại bỏ bất kỳ trình tự duyệt thư mục nào trước khi chuyển thông tin đầu vào của bạn tới ứng dụng.
+
+  Đôi khi, bạn có thể bỏ qua loại kiểm tra này bằng cách mã hóa URL hoặc thậm chí mã hóa URL kép, 
+  các ký tự =../=, chuyển thành =%2e%2e%2f= hoặc =%252e%252e%252f=. Nhiều mã hóa không chuẩn khác nhau, 
+  chẳng hạn như =..%c0%af= hoặc =..%ef%bc%8f=, cũng có thể thực hiện thủ thuật này.
+
+  Nếu một ứng dụng yêu cầu tên tệp do người dùng cung cấp phải bắt đầu bằng thư mục cơ sở nào đó,
+  chẳng hạn như =/var/www/images=, thì có thể bao gồm thư mục cơ sở được yêu cầu, sau đó là trình tự duyệt phù hợp. 
+  Ví dụ:
+
+  #+begin_src html
+    filename=/var/www/images/../../../etc/passwd
+  #+end_src
+
+  Nếu một ứng dụng yêu cầu tên tệp do người dùng cung cấp phải kết thúc bằng phần mở rộng tệp dự kiến, 
+  chẳng hạn như =.png=, thì có thể sử dụng byte rỗng để chấm dứt hiệu quả đường dẫn tệp trước phần mở rộng được yêu cầu. 
+  Ví dụ:
+  #+begin_src html
+    filename=../../../etc/passwd%00.png
+  #+end_src
+
+* Làm thế nào để ngăn chặn một cuộc tấn công duyệt thư mục
+  Cách hiệu quả nhất để ngăn chặn các lỗ hổng truyền tải đường dẫn tệp là 
+  tránh chuyển hoàn toàn thông tin đầu vào do người dùng cung cấp tới các API hệ thống tệp. 
+  Nhiều hàm ứng dụng thực hiện điều này có thể được viết lại để cung cấp hành vi tương tự theo cách an toàn hơn.
+
+  Nếu việc chuyển thông tin đầu vào do người dùng cung cấp tới API hệ thống tệp được coi là không thể tránh khỏi, 
+  thì hai cách dưới đây nên được triển khai cùng nhau để có thể nâng cao khả năng ngăn chặn tấn công:
+  - Ứng dụng phải xác thực đầu vào của người dùng trước khi xử lý. 
+    Lý tưởng nhất là việc xác thực phải so sánh với danh sách trắng các giá trị được phép. 
+    Nếu điều đó là không thể đối với chức năng được yêu cầu, thì quá trình xác thực sẽ xác minh
+    đầu vào chỉ chứa nội dung được phép, chẳng hạn như các ký tự chữ và số thuần túy.
+  - Sau khi xác thực đầu vào được cung cấp, 
+    ứng dụng sẽ nối đầu vào vào thư mục cơ sở và sử dụng API hệ thống tệp nền tảng để chuẩn hóa đường dẫn. 
+    Nó sẽ xác minh rằng đường dẫn được chuẩn hóa bắt đầu với thư mục cơ sở dự kiến.
+    
+  Dưới đây là ví dụ về một số mã Java đơn giản để xác thực đường dẫn chính tắc của tệp dựa trên đầu vào của người dùng:
+  #+begin_src java
+    File file = new File(BASE_DIRECTORY, userInput);
+    if (file.getCanonicalPath().startsWith(BASE_DIRECTORY)) {
+	// process file
+    }
+  #+end_src
+  
+* Demo
+  Ơ kìa nhìn xem đường dẫn file trang web của chúng ta có gì này?
+  Phải phải, chính là nó.
+
+  [[./resources/link-recognition.png]]
+
+  #+begin_src html
+      http://localhost:6969/?filename=index.html
+  #+end_src
+
+  =?filename=index.html= Trông khá giống lý thuyết bên trên đấy nhỉ. 
+  Chúng ta cùng thử làm một chuỗi di chuyển đường dẫn đơn giản xem sao nhỉ
+
+  #+begin_src html
+    ?filename=./../
+  #+end_src
+
+  [[./resources/no-path.png]]
+
+  #+begin_src html
+    Provided path has no filename
+  #+end_src
+
+  Hmm... Trông có vẻ như trang web này không hỗ trợ việc hiển thị danh sách các tệp tin ra.
+  Thêm nữa có vẻ như chúng ta cần tên một file chứ không phải đường dẫn đến thư mục.
+  May mắn cho các bạn là mình đã liệt kê danh sách các file của máy chủ web này bằng cách đi thông qua
+  đường dẫn =/static/=
+  
+  [[./resources/folder-structure.png]]
+
+  Từ đây các bạn có thể xem được tất cả các file trong project của mình. Vậy hãy thử xem ảnh trong folder =resources=
+  bằng phương thức tấn công trên xem nào, hãy thêm dòng này vào sau link website:
+
+  #+begin_src html
+    ?filename=resources/image1.jpg
+  #+end_src
+
+  Quá tuyệt vời, chúng ta đã xem được file mà người xây dựng lên server không muốn cho chúng ta xem.
+
+  [[./resources/trying-to-traverse.png]]
+  
+  Vậy khi ta muốn xem các file nhạy cảm của server thì sao nhỉ, ví dụ như file password của server chẳng hạn.
+  #+begin_src html
+    ?filename=/etc/passwd
+  #+end_src
+
+  Ồ, vậy là chúng ta đã tải về được một file password của server.
+
+  [[./resources/downloading-sensitive-file.png]]
+
+  Cùng mở file đấy lên xem chúng ta có gì nào?
+
+  [[./resources/viewing-sensitive-file.png]]
+
+  Đúng cấu trúc file =passwd= trên hệ điều hành Linux luôn
+  Như vậy khi chúng ta có thể truy cập vào folder ở =root=, chúng ta có thể dễ dàng lấy được dữ liệu của file mật khẩu 
+  qua đường dẫn =/etc/shadow=. Sau đó có thể dùng các công cụ bẻ khóa mật khẩu như [[https://www.openwall.com/john/][John The Ripper]] để có thế lấy được mật khẩu một cách dễ dàng.
+
+* Tài liệu tham khảo
+  - [[https://portswigger.net/web-security/file-path-traversal][Directory traversal]]

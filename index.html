@@ -1,0 +1,405 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<!-- 2023-03-18 Sat 22:24 -->
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Phương pháp tấn công bằng cách duyệt đường dẫn</title>
+<meta name="generator" content="Org mode" />
+<meta name="author" content="Nguyễn Tuấn Minh" />
+<link rel="stylesheet" type="text/css" href="https://fniessen.github.io/org-html-themes/src/readtheorg_theme/css/htmlize.css"/>
+<link rel="stylesheet" type="text/css" href="https://fniessen.github.io/org-html-themes/src/readtheorg_theme/css/readtheorg.css"/>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="https://fniessen.github.io/org-html-themes/src/lib/js/jquery.stickytableheaders.min.js"></script>
+<script type="text/javascript" src="https://fniessen.github.io/org-html-themes/src/readtheorg_theme/js/readtheorg.js"></script>
+<script type="text/javascript">
+/*
+@licstart  The following is the entire license notice for the
+JavaScript code in this tag.
+
+Copyright (C) 2012-2020 Free Software Foundation, Inc.
+
+The JavaScript code in this tag is free software: you can
+redistribute it and/or modify it under the terms of the GNU
+General Public License (GNU GPL) as published by the Free Software
+Foundation, either version 3 of the License, or (at your option)
+any later version.  The code is distributed WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU GPL for more details.
+
+As additional permission under GNU GPL version 3 section 7, you
+may distribute non-source (e.g., minimized or compacted) forms of
+that code without the copy of the GNU GPL normally required by
+section 4, provided you include this license notice and a URL
+through which recipients can access the Corresponding Source.
+
+
+@licend  The above is the entire license notice
+for the JavaScript code in this tag.
+*/
+<!--/*--><![CDATA[/*><!--*/
+ function CodeHighlightOn(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(null != target) {
+     elem.cacheClassElem = elem.className;
+     elem.cacheClassTarget = target.className;
+     target.className = "code-highlighted";
+     elem.className   = "code-highlighted";
+   }
+ }
+ function CodeHighlightOff(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(elem.cacheClassElem)
+     elem.className = elem.cacheClassElem;
+   if(elem.cacheClassTarget)
+     target.className = elem.cacheClassTarget;
+ }
+/*]]>*///-->
+</script>
+</head>
+<body>
+<div id="content">
+<h1 class="title">Phương pháp tấn công bằng cách duyệt đường dẫn</h1>
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#orge9271b1">Chú ý</a></li>
+<li><a href="#org2a0b8c4">Di chuyển trong các thư mục là gì?</a></li>
+<li><a href="#org362e4a7">Đọc các tệp tùy ý thông qua truyền tải thư mục</a></li>
+<li><a href="#orga42fb88">Những trở ngại phổ biến khi khai thác lỗ hổng truyền tải đường dẫn tệp</a></li>
+<li><a href="#org85cd620">Làm thế nào để ngăn chặn một cuộc tấn công duyệt thư mục</a></li>
+<li><a href="#org7506496">Demo</a></li>
+<li><a href="#org4891c9f">Tài liệu tham khảo</a></li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-orge9271b1" class="outline-2">
+<h2 id="orge9271b1">Chú ý</h2>
+<div class="outline-text-2" id="text-orge9271b1">
+<p>
+Trang web này chỉ được dịch qua <a href="https://translate.google.com/">Google Dịch</a> từ trang web <a href="https://portswigger.net/web-security/file-path-traversal">này</a>,
+nếu bạn muốn tìm thông tin chính xác nhất thì hãy qua trang web 
+đó để tìm hiểu thông tin một cách chính xác nhất.
+</p>
+
+<p>
+Trang web này chỉ để phục vụ mục đích Demo.
+</p>
+</div>
+</div>
+<div id="outline-container-org2a0b8c4" class="outline-2">
+<h2 id="org2a0b8c4">Di chuyển trong các thư mục là gì?</h2>
+<div class="outline-text-2" id="text-org2a0b8c4">
+<p>
+Trong phần này, chúng tôi sẽ giải thích duyệt thư mục là gì, 
+mô tả cách thực hiện các cuộc tấn công duyệt đường dẫn và 
+vượt qua các chướng ngại vật phổ biến, 
+đồng thời giải thích cách ngăn chặn các lỗ hổng khi duyệt đường dẫn.
+</p>
+
+<p>
+<img src="/home?filename=resources/directory-traversal.svg" class="org-svg"/>
+Di chuyển trong các thư mục (còn gọi là di chuyển qua đường dẫn tệp) là 
+một lỗ hổng bảo mật web cho phép kẻ tấn công đọc các tệp tùy ý trên máy chủ đang chạy ứng dụng. 
+Điều này có thể bao gồm mã ứng dụng, dữ liệu, thông tin đăng nhập của hệ thống, 
+các tệp tin về hệ điều hành mang tính chất nhạy cảm (như file chứa mật khẩu các người dùng trong máy tính). 
+Trong một số trường hợp, kẻ tấn công có thể ghi đè vào các tệp tin tùy ý trên máy chủ, 
+cho phép chúng sửa đổi dữ liệu hoặc hành vi của ứng dụng và có thể chiếm hoàn toàn quyền kiểm soát máy chủ.
+<a href="https://www.youtube.com/watch?v=NQwUDLMOrHo&amp;t">What is directory traversal? (file path traversal) - Web Security Academy</a>
+</p>
+</div>
+</div>
+
+<div id="outline-container-org362e4a7" class="outline-2">
+<h2 id="org362e4a7">Đọc các tệp tùy ý thông qua truyền tải thư mục</h2>
+<div class="outline-text-2" id="text-org362e4a7">
+<p>
+Hãy hình dung một ứng dụng mua sắm hiển thị hình ảnh của các mặt hàng để bán. Hình ảnh được tải qua một số HTML như sau:
+</p>
+<div class="org-src-container">
+<pre class="src src-html">&lt;img src="/loadImage?filename=some-image.png"&gt;
+</pre>
+</div>
+<p>
+URL <code>loadImage</code> nhận tham số tên tệp và trả về nội dung của tệp đã chỉ định. 
+Bản thân các tệp hình ảnh được lưu trữ trên đĩa ở vị trí <code>/var/www/images/</code>. 
+Để trả về một hình ảnh, ứng dụng sẽ thêm tên tệp được yêu cầu vào thư mục cơ sở này và
+sử dụng API hệ thống tệp để đọc nội dung của tệp. 
+Trong trường hợp trên, ứng dụng đọc từ đường dẫn tệp sau:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">/var/www/images/218.png
+</pre>
+</div>
+
+<p>
+Ứng dụng không triển khai biện pháp bảo vệ chống lại các cuộc tấn công duyệt thư mục, 
+vì vậy kẻ tấn công có thể yêu cầu URL sau để truy xuất một tệp tùy ý từ hệ thống tệp của máy chủ:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">https://insecure-website.com/loadImage?filename=../../../etc/passwd
+</pre>
+</div>
+
+<p>
+Điều này khiến ứng dụng đọc từ đường dẫn tệp sau:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">/var/www/images/../../../etc/passwd
+</pre>
+</div>
+
+<p>
+Chuỗi ký tự <code>../</code> là một chuỗi hợp lệ trong một đường dẫn tệp và có nghĩa là
+di chuyển lên trên một cấp trong thư mục. Ba chuỗi <code>../</code> liên tiếp sẽ di chuyển từ thư mục
+<code>/var/www/images/</code> đến thư mục root (<code>/</code>) của hệ thống, do đó tệp tin thực sự được đọc sẽ là:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">/etc/passwd
+</pre>
+</div>
+
+<p>
+Trên các hệ điều trên Unix, đây là một tệp tiêu chuẩn chứa thông tin chi tiết về người dùng đã đăng ký trên máy chủ.
+Trên Windows, cả <code>../</code> và <code>..\</code> đều là các chuỗi duyệt thư mục hợp lệ và 
+một cuộc tấn công tương đương để lấy một tệp hệ điều hành tiêu chuẩn sẽ là:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">https://insecure-website.com/loadImage?filename=..\..\..\windows\win.ini
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orga42fb88" class="outline-2">
+<h2 id="orga42fb88">Những trở ngại phổ biến khi khai thác lỗ hổng truyền tải đường dẫn tệp</h2>
+<div class="outline-text-2" id="text-orga42fb88">
+<p>
+Nhiều ứng dụng khi xử lý dữ liệu nhập vào của người dùng sẽ triển khai 
+một số giải pháp nhằm chống lại phương thức tấn công này và chúng thường có thể 
+bị vượt qua một cách dễ dàng.
+</p>
+
+<p>
+Nếu một ứng dụng loại bỏ hoặc chặn các chuỗi duyệt thư mục khỏi tên tệp do người dùng cung cấp, 
+thì có thể vượt qua lớp bảo vệ bằng nhiều kỹ thuật khác nhau.
+</p>
+
+<p>
+Kẻ tấn công có thể sử dụng một <i>đường dẫn tuyệt đối</i> từ thư mục gốc của hệ thống tệp, 
+chẳng hạn như <code>filename=/etc/passwd</code>, để tham chiếu trực tiếp tệp mà không cần sử dụng bất kỳ chuỗi <code>../</code> nào.
+</p>
+
+<p>
+Bạn có thể sử dụng các chuỗi di chuyển lồng nhau, chẳng hạn như <code>....//</code> hoặc <code>....\/</code>, 
+các chuỗi đó sẽ trở lại các chuỗi di chuyển đơn giản khi trình tự bên trong bị loại bỏ.
+</p>
+
+<p>
+Trong một số tình huống, chẳng hạn như trong đường dẫn URL hoặc
+tham số tên tệp của yêu cầu nhiều phần/biểu mẫu dữ liệu(multipart/form-data), 
+máy chủ web có thể loại bỏ bất kỳ trình tự duyệt thư mục nào trước khi chuyển thông tin đầu vào của bạn tới ứng dụng.
+</p>
+
+<p>
+Đôi khi, bạn có thể bỏ qua loại kiểm tra này bằng cách mã hóa URL hoặc thậm chí mã hóa URL kép, 
+các ký tự <code>../</code>, chuyển thành <code>%2e%2e%2f</code> hoặc <code>%252e%252e%252f</code>. Nhiều mã hóa không chuẩn khác nhau, 
+chẳng hạn như <code>..%c0%af</code> hoặc <code>..%ef%bc%8f</code>, cũng có thể thực hiện thủ thuật này.
+</p>
+
+<p>
+Nếu một ứng dụng yêu cầu tên tệp do người dùng cung cấp phải bắt đầu bằng thư mục cơ sở nào đó,
+chẳng hạn như <code>/var/www/images</code>, thì có thể bao gồm thư mục cơ sở được yêu cầu, sau đó là trình tự duyệt phù hợp. 
+Ví dụ:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">filename=/var/www/images/../../../etc/passwd
+</pre>
+</div>
+
+<p>
+Nếu một ứng dụng yêu cầu tên tệp do người dùng cung cấp phải kết thúc bằng phần mở rộng tệp dự kiến, 
+chẳng hạn như <code>.png</code>, thì có thể sử dụng byte rỗng để chấm dứt hiệu quả đường dẫn tệp trước phần mở rộng được yêu cầu. 
+Ví dụ:
+</p>
+<div class="org-src-container">
+<pre class="src src-html">filename=../../../etc/passwd%00.png
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org85cd620" class="outline-2">
+<h2 id="org85cd620">Làm thế nào để ngăn chặn một cuộc tấn công duyệt thư mục</h2>
+<div class="outline-text-2" id="text-org85cd620">
+<p>
+Cách hiệu quả nhất để ngăn chặn các lỗ hổng truyền tải đường dẫn tệp là 
+tránh chuyển hoàn toàn thông tin đầu vào do người dùng cung cấp tới các API hệ thống tệp. 
+Nhiều hàm ứng dụng thực hiện điều này có thể được viết lại để cung cấp hành vi tương tự theo cách an toàn hơn.
+</p>
+
+<p>
+Nếu việc chuyển thông tin đầu vào do người dùng cung cấp tới API hệ thống tệp được coi là không thể tránh khỏi, 
+thì hai cách dưới đây nên được triển khai cùng nhau để có thể nâng cao khả năng ngăn chặn tấn công:
+</p>
+<ul class="org-ul">
+<li>Ứng dụng phải xác thực đầu vào của người dùng trước khi xử lý. 
+Lý tưởng nhất là việc xác thực phải so sánh với danh sách trắng các giá trị được phép. 
+Nếu điều đó là không thể đối với chức năng được yêu cầu, thì quá trình xác thực sẽ xác minh
+đầu vào chỉ chứa nội dung được phép, chẳng hạn như các ký tự chữ và số thuần túy.</li>
+<li>Sau khi xác thực đầu vào được cung cấp, 
+ứng dụng sẽ nối đầu vào vào thư mục cơ sở và sử dụng API hệ thống tệp nền tảng để chuẩn hóa đường dẫn. 
+Nó sẽ xác minh rằng đường dẫn được chuẩn hóa bắt đầu với thư mục cơ sở dự kiến.</li>
+</ul>
+
+<p>
+Dưới đây là ví dụ về một số mã Java đơn giản để xác thực đường dẫn chính tắc của tệp dựa trên đầu vào của người dùng:
+</p>
+<div class="org-src-container">
+<pre class="src src-java">File file = new File(BASE_DIRECTORY, userInput);
+if (file.getCanonicalPath().startsWith(BASE_DIRECTORY)) {
+    // process file
+}
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org7506496" class="outline-2">
+<h2 id="org7506496">Demo</h2>
+<div class="outline-text-2" id="text-org7506496">
+<p>
+Ơ kìa nhìn xem đường dẫn file trang web của chúng ta có gì này?
+Phải phải, chính là nó.
+</p>
+
+
+<div class="figure">
+<p><img src="/home?filename=resources/link-recognition.png" alt="link-recognition.png" />
+</p>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-html">http://localhost:6969/home?filename=index.html
+</pre>
+</div>
+
+<p>
+<code>?filename=index.html</code> Trông khá giống lý thuyết bên trên đấy nhỉ. 
+Chúng ta cùng thử làm một chuỗi di chuyển đường dẫn đơn giản xem sao nhỉ
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">?filename=./../
+</pre>
+</div>
+
+
+<div class="figure">
+<p><img src="/home?filename=resources/no-path.png" alt="no-path.png" />
+</p>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-html">Provided path has no filename
+</pre>
+</div>
+
+<p>
+Hmm&#x2026; Trông có vẻ như trang web này không hỗ trợ việc hiển thị danh sách các tệp tin ra.
+Thêm nữa có vẻ như chúng ta cần tên một file chứ không phải đường dẫn đến thư mục.
+May mắn cho các bạn là mình đã liệt kê danh sách các file của máy chủ web này bằng cách đi thông qua
+đường dẫn <code>/static/</code>
+</p>
+
+
+<div class="figure">
+<p><img src="/home?filename=resources/folder-structure.png" alt="folder-structure.png" />
+</p>
+</div>
+
+<p>
+Từ đây các bạn có thể xem được tất cả các file trong project của mình. Vậy hãy thử xem ảnh trong folder <code>resources</code>
+bằng phương thức tấn công trên xem nào, hãy thêm dòng này vào sau link website:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-html">?filename=resources/image1.jpg
+</pre>
+</div>
+
+<p>
+Quá tuyệt vời, chúng ta đã xem được file mà người xây dựng lên server không muốn cho chúng ta xem.
+</p>
+
+
+<div class="figure">
+<p><img src="/home?filename=resources/trying-to-traverse.png" alt="trying-to-traverse.png" />
+</p>
+</div>
+
+<p>
+Vậy khi ta muốn xem các file nhạy cảm của server thì sao nhỉ, ví dụ như file password của server chẳng hạn.
+</p>
+<div class="org-src-container">
+<pre class="src src-html">?filename=/etc/passwd
+</pre>
+</div>
+
+<p>
+Ồ, vậy là chúng ta đã tải về được một file password của server.
+</p>
+
+
+<div class="figure">
+<p><img src="/home?filename=resources/downloading-sensitive-file.png" alt="downloading-sensitive-file.png" />
+</p>
+</div>
+
+<p>
+Cùng mở file đấy lên xem chúng ta có gì nào?
+</p>
+
+
+<div class="figure">
+<p><img src="/home?filename=resources/viewing-sensitive-file.png" alt="viewing-sensitive-file.png" />
+</p>
+</div>
+
+<p>
+Đúng cấu trúc file <code>passwd</code> trên hệ điều hành Linux luôn
+Như vậy khi chúng ta có thể truy cập vào folder ở <code>root</code>, chúng ta có thể dễ dàng lấy được dữ liệu của file mật khẩu 
+qua đường dẫn <code>/etc/shadow</code>. Sau đó có thể dùng các công cụ bẻ khóa mật khẩu như <a href="https://www.openwall.com/john/">John The Ripper</a> để có thế lấy được mật khẩu một cách dễ dàng.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org4891c9f" class="outline-2">
+<h2 id="org4891c9f">Tài liệu tham khảo</h2>
+<div class="outline-text-2" id="text-org4891c9f">
+<ul class="org-ul">
+<li><a href="https://portswigger.net/web-security/file-path-traversal">Directory traversal</a></li>
+</ul>
+</div>
+</div>
+</div>
+<div id="postamble" class="status">
+<p class="author">Author: Nguyễn Tuấn Minh</p>
+<p class="date">Created: 2023-03-18 Sat 20:30</p>
+<p class="validation"><a href="http://validator.w3.org/check?uri=referer">Validate</a></p>
+</div>
+</body>
+</html>
